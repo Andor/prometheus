@@ -14,7 +14,6 @@
 package retrieval
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,17 +36,13 @@ const (
 	scrapeHealthMetricName   = "up"
 	scrapeDurationMetricName = "scrape_duration_seconds"
 
-	// Capacity of the channel to buffer samples during ingestion.
-	ingestedSamplesCap = 256
-
 	// Constants for instrumentation.
 	namespace = "prometheus"
 	interval  = "interval"
+	scrapeJob = "scrape_job"
 )
 
 var (
-	errSkippedScrape = errors.New("scrape skipped due to throttled ingestion")
-
 	targetIntervalLength = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Namespace:  namespace,
@@ -74,12 +69,31 @@ var (
 		},
 		[]string{interval},
 	)
+	targetSyncIntervalLength = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Namespace:  namespace,
+			Name:       "target_sync_length_seconds",
+			Help:       "Actual interval to sync the scrape pool.",
+			Objectives: map[float64]float64{0.01: 0.001, 0.05: 0.005, 0.5: 0.05, 0.90: 0.01, 0.99: 0.001},
+		},
+		[]string{scrapeJob},
+	)
+	targetScrapePoolSyncsCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "target_scrape_pool_sync_total",
+			Help:      "Total number of syncs that were executed on a scrape pool.",
+		},
+		[]string{scrapeJob},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(targetIntervalLength)
 	prometheus.MustRegister(targetSkippedScrapes)
 	prometheus.MustRegister(targetReloadIntervalLength)
+	prometheus.MustRegister(targetSyncIntervalLength)
+	prometheus.MustRegister(targetScrapePoolSyncsCounter)
 }
 
 // scrapePool manages scrapes for sets of targets.
@@ -114,6 +128,13 @@ func newScrapePool(cfg *config.ScrapeConfig, app storage.SampleAppender) *scrape
 		loops:    map[uint64]loop{},
 		newLoop:  newScrapeLoop,
 	}
+}
+
+func (sp *scrapePool) init(ctx context.Context) {
+	sp.mtx.Lock()
+	defer sp.mtx.Unlock()
+
+	sp.ctx = ctx
 }
 
 // stop terminates all scrape loops and returns after they all terminated.
@@ -188,6 +209,7 @@ func (sp *scrapePool) reload(cfg *config.ScrapeConfig) {
 // scrape loops for new targets, and stops scrape loops for disappeared targets.
 // It returns after all stopped scrape loops terminated.
 func (sp *scrapePool) sync(targets []*Target) {
+	start := time.Now()
 	sp.mtx.Lock()
 	defer sp.mtx.Unlock()
 
@@ -233,6 +255,10 @@ func (sp *scrapePool) sync(targets []*Target) {
 	// may be active and tries to insert. The old scraper that didn't terminate yet could still
 	// be inserting a previous sample set.
 	wg.Wait()
+	targetSyncIntervalLength.WithLabelValues(sp.config.JobName).Observe(
+		float64(time.Since(start)) / float64(time.Second),
+	)
+	targetScrapePoolSyncsCounter.WithLabelValues(sp.config.JobName).Inc()
 }
 
 // sampleAppender returns an appender for ingested samples from the target.

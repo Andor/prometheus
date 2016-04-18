@@ -313,21 +313,27 @@ func (s *memorySeries) dropChunks(t model.Time) error {
 			break
 		}
 	}
-	if keepIdx > 0 {
-		s.chunkDescs = append(
-			make([]*chunkDesc, 0, len(s.chunkDescs)-keepIdx),
-			s.chunkDescs[keepIdx:]...,
-		)
-		s.persistWatermark -= keepIdx
-		if s.persistWatermark < 0 {
-			panic("dropped unpersisted chunks from memory")
-		}
-		if s.chunkDescsOffset != -1 {
-			s.chunkDescsOffset += keepIdx
-		}
-		numMemChunkDescs.Sub(float64(keepIdx))
-		s.dirty = true
+	if keepIdx == len(s.chunkDescs) && !s.headChunkClosed {
+		// Never drop an open head chunk.
+		keepIdx--
 	}
+	if keepIdx <= 0 {
+		// Nothing to drop.
+		return nil
+	}
+	s.chunkDescs = append(
+		make([]*chunkDesc, 0, len(s.chunkDescs)-keepIdx),
+		s.chunkDescs[keepIdx:]...,
+	)
+	s.persistWatermark -= keepIdx
+	if s.persistWatermark < 0 {
+		panic("dropped unpersisted chunks from memory")
+	}
+	if s.chunkDescsOffset != -1 {
+		s.chunkDescsOffset += keepIdx
+	}
+	numMemChunkDescs.Sub(float64(keepIdx))
+	s.dirty = true
 	return nil
 }
 
@@ -557,12 +563,13 @@ func (it *memorySeriesIterator) ValueAtOrBeforeTime(t model.Time) model.SamplePa
 			return ZeroSamplePair
 		}
 		if containsT {
-			value, err := it.chunkIt.valueAtOrBeforeTime(t)
-			if err != nil {
-				it.quarantine(err)
-				return ZeroSamplePair
+			if it.chunkIt.findAtOrBefore(t) {
+				return it.chunkIt.value()
 			}
-			return value
+			if it.chunkIt.err() != nil {
+				it.quarantine(it.chunkIt.err())
+			}
+			return ZeroSamplePair
 		}
 	}
 
@@ -580,12 +587,13 @@ func (it *memorySeriesIterator) ValueAtOrBeforeTime(t model.Time) model.SamplePa
 		return ZeroSamplePair
 	}
 	it.chunkIt = it.chunkIterator(l - i)
-	value, err := it.chunkIt.valueAtOrBeforeTime(t)
-	if err != nil {
-		it.quarantine(err)
-		return ZeroSamplePair
+	if it.chunkIt.findAtOrBefore(t) {
+		return it.chunkIt.value()
 	}
-	return value
+	if it.chunkIt.err() != nil {
+		it.quarantine(it.chunkIt.err())
+	}
+	return ZeroSamplePair
 }
 
 // RangeValues implements SeriesIterator.
@@ -612,7 +620,7 @@ func (it *memorySeriesIterator) RangeValues(in metric.Interval) []model.SamplePa
 		if c.firstTime().After(in.NewestInclusive) {
 			break
 		}
-		chValues, err := it.chunkIterator(i + j).rangeValues(in)
+		chValues, err := rangeValues(it.chunkIterator(i+j), in)
 		if err != nil {
 			it.quarantine(err)
 			return nil

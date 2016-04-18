@@ -1,3 +1,16 @@
+// Copyright 2016 The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package v1
 
 import (
@@ -226,7 +239,10 @@ func (api *API) series(r *http.Request) (interface{}, *apiError) {
 		if err != nil {
 			return nil, &apiError{errorBadData, err}
 		}
-		for fp, met := range api.Storage.MetricsForLabelMatchers(matchers...) {
+		for fp, met := range api.Storage.MetricsForLabelMatchers(
+			model.Earliest, model.Latest, // Get every series.
+			matchers...,
+		) {
 			res[fp] = met
 		}
 	}
@@ -250,7 +266,10 @@ func (api *API) dropSeries(r *http.Request) (interface{}, *apiError) {
 		if err != nil {
 			return nil, &apiError{errorBadData, err}
 		}
-		for fp := range api.Storage.MetricsForLabelMatchers(matchers...) {
+		for fp := range api.Storage.MetricsForLabelMatchers(
+			model.Earliest, model.Latest, // Get every series.
+			matchers...,
+		) {
 			fps[fp] = struct{}{}
 		}
 	}

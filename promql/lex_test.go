@@ -217,6 +217,9 @@ var tests = []struct {
 	}, {
 		input:    `or`,
 		expected: []item{{itemLOR, 0, `or`}},
+	}, {
+		input:    `unless`,
+		expected: []item{{itemLUnless, 0, `unless`}},
 	},
 	// Test aggregators.
 	{
@@ -263,18 +266,6 @@ var tests = []struct {
 	}, {
 		input:    "annotations",
 		expected: []item{{itemAnnotations, 0, "annotations"}},
-	}, {
-		input:    "description",
-		expected: []item{{itemDescription, 0, "description"}},
-	}, {
-		input:    "summary",
-		expected: []item{{itemSummary, 0, "summary"}},
-	}, {
-		input:    "runbook",
-		expected: []item{{itemRunbook, 0, "runbook"}},
-	}, {
-		input:    "with",
-		expected: []item{{itemWith, 0, "with"}},
 	}, {
 		input:    "offset",
 		expected: []item{{itemOffset, 0, "offset"}},

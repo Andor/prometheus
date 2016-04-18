@@ -213,7 +213,7 @@ var testExpr = []struct {
 	}, {
 		input:  "1 and 1",
 		fail:   true,
-		errMsg: "AND and OR not allowed in binary scalar expression",
+		errMsg: "set operator \"and\" not allowed in binary scalar expression",
 	}, {
 		input:  "1 == 1",
 		fail:   true,
@@ -221,7 +221,11 @@ var testExpr = []struct {
 	}, {
 		input:  "1 or 1",
 		fail:   true,
-		errMsg: "AND and OR not allowed in binary scalar expression",
+		errMsg: "set operator \"or\" not allowed in binary scalar expression",
+	}, {
+		input:  "1 unless 1",
+		fail:   true,
+		errMsg: "set operator \"unless\" not allowed in binary scalar expression",
 	}, {
 		input:  "1 !~ 1",
 		fail:   true,
@@ -340,6 +344,24 @@ var testExpr = []struct {
 			VectorMatching: &VectorMatching{Card: CardManyToMany},
 		},
 	}, {
+		input: "foo unless bar",
+		expected: &BinaryExpr{
+			Op: itemLUnless,
+			LHS: &VectorSelector{
+				Name: "foo",
+				LabelMatchers: metric.LabelMatchers{
+					{Type: metric.Equal, Name: model.MetricNameLabel, Value: "foo"},
+				},
+			},
+			RHS: &VectorSelector{
+				Name: "bar",
+				LabelMatchers: metric.LabelMatchers{
+					{Type: metric.Equal, Name: model.MetricNameLabel, Value: "bar"},
+				},
+			},
+			VectorMatching: &VectorMatching{Card: CardManyToMany},
+		},
+	}, {
 		// Test and/or precedence and reassigning of operands.
 		input: "foo + bar or bla and blub",
 		expected: &BinaryExpr{
@@ -375,6 +397,45 @@ var testExpr = []struct {
 					},
 				},
 				VectorMatching: &VectorMatching{Card: CardManyToMany},
+			},
+			VectorMatching: &VectorMatching{Card: CardManyToMany},
+		},
+	}, {
+		// Test and/or/unless precedence.
+		input: "foo and bar unless baz or qux",
+		expected: &BinaryExpr{
+			Op: itemLOR,
+			LHS: &BinaryExpr{
+				Op: itemLUnless,
+				LHS: &BinaryExpr{
+					Op: itemLAND,
+					LHS: &VectorSelector{
+						Name: "foo",
+						LabelMatchers: metric.LabelMatchers{
+							{Type: metric.Equal, Name: model.MetricNameLabel, Value: "foo"},
+						},
+					},
+					RHS: &VectorSelector{
+						Name: "bar",
+						LabelMatchers: metric.LabelMatchers{
+							{Type: metric.Equal, Name: model.MetricNameLabel, Value: "bar"},
+						},
+					},
+					VectorMatching: &VectorMatching{Card: CardManyToMany},
+				},
+				RHS: &VectorSelector{
+					Name: "baz",
+					LabelMatchers: metric.LabelMatchers{
+						{Type: metric.Equal, Name: model.MetricNameLabel, Value: "baz"},
+					},
+				},
+				VectorMatching: &VectorMatching{Card: CardManyToMany},
+			},
+			RHS: &VectorSelector{
+				Name: "qux",
+				LabelMatchers: metric.LabelMatchers{
+					{Type: metric.Equal, Name: model.MetricNameLabel, Value: "qux"},
+				},
 			},
 			VectorMatching: &VectorMatching{Card: CardManyToMany},
 		},
@@ -457,6 +518,27 @@ var testExpr = []struct {
 			},
 		},
 	}, {
+		input: "foo unless on(bar) baz",
+		expected: &BinaryExpr{
+			Op: itemLUnless,
+			LHS: &VectorSelector{
+				Name: "foo",
+				LabelMatchers: metric.LabelMatchers{
+					{Type: metric.Equal, Name: model.MetricNameLabel, Value: "foo"},
+				},
+			},
+			RHS: &VectorSelector{
+				Name: "baz",
+				LabelMatchers: metric.LabelMatchers{
+					{Type: metric.Equal, Name: model.MetricNameLabel, Value: "baz"},
+				},
+			},
+			VectorMatching: &VectorMatching{
+				Card: CardManyToMany,
+				On:   model.LabelNames{"bar"},
+			},
+		},
+	}, {
 		input: "foo / on(test,blub) group_left(bar) bar",
 		expected: &BinaryExpr{
 			Op: itemDIV,
@@ -503,19 +585,27 @@ var testExpr = []struct {
 	}, {
 		input:  "foo and 1",
 		fail:   true,
-		errMsg: "AND and OR not allowed in binary scalar expression",
+		errMsg: "set operator \"and\" not allowed in binary scalar expression",
 	}, {
 		input:  "1 and foo",
 		fail:   true,
-		errMsg: "AND and OR not allowed in binary scalar expression",
+		errMsg: "set operator \"and\" not allowed in binary scalar expression",
 	}, {
 		input:  "foo or 1",
 		fail:   true,
-		errMsg: "AND and OR not allowed in binary scalar expression",
+		errMsg: "set operator \"or\" not allowed in binary scalar expression",
 	}, {
 		input:  "1 or foo",
 		fail:   true,
-		errMsg: "AND and OR not allowed in binary scalar expression",
+		errMsg: "set operator \"or\" not allowed in binary scalar expression",
+	}, {
+		input:  "foo unless 1",
+		fail:   true,
+		errMsg: "set operator \"unless\" not allowed in binary scalar expression",
+	}, {
+		input:  "1 unless foo",
+		fail:   true,
+		errMsg: "set operator \"unless\" not allowed in binary scalar expression",
 	}, {
 		input:  "1 or on(bar) foo",
 		fail:   true,
@@ -527,19 +617,27 @@ var testExpr = []struct {
 	}, {
 		input:  "foo and on(bar) group_left(baz) bar",
 		fail:   true,
-		errMsg: "no grouping allowed for AND and OR operations",
+		errMsg: "no grouping allowed for \"and\" operation",
 	}, {
 		input:  "foo and on(bar) group_right(baz) bar",
 		fail:   true,
-		errMsg: "no grouping allowed for AND and OR operations",
+		errMsg: "no grouping allowed for \"and\" operation",
 	}, {
 		input:  "foo or on(bar) group_left(baz) bar",
 		fail:   true,
-		errMsg: "no grouping allowed for AND and OR operations",
+		errMsg: "no grouping allowed for \"or\" operation",
 	}, {
 		input:  "foo or on(bar) group_right(baz) bar",
 		fail:   true,
-		errMsg: "no grouping allowed for AND and OR operations",
+		errMsg: "no grouping allowed for \"or\" operation",
+	}, {
+		input:  "foo unless on(bar) group_left(baz) bar",
+		fail:   true,
+		errMsg: "no grouping allowed for \"unless\" operation",
+	}, {
+		input:  "foo unless on(bar) group_right(baz) bar",
+		fail:   true,
+		errMsg: "no grouping allowed for \"unless\" operation",
 	}, {
 		input:  `http_requests{group="production"} / on(instance) group_left cpu_count{type="smp"}`,
 		fail:   true,
@@ -1309,32 +1407,6 @@ var testStatement = []struct {
 					},
 				},
 				Labels: model.LabelSet{"x": "", "a": "z"},
-			},
-		},
-	}, {
-		input: `ALERT SomeName IF some_metric > 1
-			WITH {}
-			SUMMARY "Global request rate low"
-			DESCRIPTION "The global request rate is low"
-		`,
-		expected: Statements{
-			&AlertStmt{
-				Name: "SomeName",
-				Expr: &BinaryExpr{
-					Op: itemGTR,
-					LHS: &VectorSelector{
-						Name: "some_metric",
-						LabelMatchers: metric.LabelMatchers{
-							{Type: metric.Equal, Name: model.MetricNameLabel, Value: "some_metric"},
-						},
-					},
-					RHS: &NumberLiteral{1},
-				},
-				Labels: model.LabelSet{},
-				Annotations: model.LabelSet{
-					"summary":     "Global request rate low",
-					"description": "The global request rate is low",
-				},
 			},
 		},
 	}, {

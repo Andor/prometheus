@@ -18,6 +18,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/prometheus/common/log"
 )
 
 // item represents a token or text string returned from the scanner.
@@ -48,7 +50,7 @@ func (i item) String() string {
 	return fmt.Sprintf("%q", i.val)
 }
 
-// isOperator returns true if the item corresponds to a logical or arithmetic operator.
+// isOperator returns true if the item corresponds to a arithmetic or set operator.
 // Returns false otherwise.
 func (i itemType) isOperator() bool { return i > operatorsStart && i < operatorsEnd }
 
@@ -71,6 +73,15 @@ func (i itemType) isComparisonOperator() bool {
 	}
 }
 
+// isSetOperator returns whether the item corresponds to a set operator.
+func (i itemType) isSetOperator() bool {
+	switch i {
+	case itemLAND, itemLOR, itemLUnless:
+		return true
+	}
+	return false
+}
+
 // Constants for operator precedence in expressions.
 //
 const LowestPrec = 0 // Non-operators.
@@ -82,7 +93,7 @@ func (i itemType) precedence() int {
 	switch i {
 	case itemLOR:
 		return 1
-	case itemLAND:
+	case itemLAND, itemLUnless:
 		return 2
 	case itemEQL, itemNEQ, itemLTE, itemLSS, itemGTE, itemGTR:
 		return 3
@@ -127,6 +138,7 @@ const (
 	itemDIV
 	itemLAND
 	itemLOR
+	itemLUnless
 	itemEQL
 	itemNEQ
 	itemLTE
@@ -163,18 +175,18 @@ const (
 	itemGroupLeft
 	itemGroupRight
 	itemBool
-	// Old alerting syntax
-	itemWith
+	// Removed keywords. Just here to detect and print errors.
 	itemSummary
-	itemRunbook
 	itemDescription
+	itemRunbook
 	keywordsEnd
 )
 
 var key = map[string]itemType{
 	// Operators.
-	"and": itemLAND,
-	"or":  itemLOR,
+	"and":    itemLAND,
+	"or":     itemLOR,
+	"unless": itemLUnless,
 
 	// Aggregators.
 	"sum":    itemSum,
@@ -200,12 +212,10 @@ var key = map[string]itemType{
 	"group_left":    itemGroupLeft,
 	"group_right":   itemGroupRight,
 	"bool":          itemBool,
-
-	// Old alerting syntax.
-	"with":        itemWith,
+	// Removed keywords. Just here to detect and print errors.
 	"summary":     itemSummary,
-	"runbook":     itemRunbook,
 	"description": itemDescription,
+	"runbook":     itemRunbook,
 }
 
 // These are the default string representations for common items. It does not
@@ -352,7 +362,7 @@ func (l *lexer) ignore() {
 
 // accept consumes the next rune if it's from the valid set.
 func (l *lexer) accept(valid string) bool {
-	if strings.IndexRune(valid, l.next()) >= 0 {
+	if strings.ContainsRune(valid, l.next()) {
 		return true
 	}
 	l.backup()
@@ -361,7 +371,7 @@ func (l *lexer) accept(valid string) bool {
 
 // acceptRun consumes a run of runes from the valid set.
 func (l *lexer) acceptRun(valid string) {
-	for strings.IndexRune(valid, l.next()) >= 0 {
+	for strings.ContainsRune(valid, l.next()) {
 		// consume
 	}
 	l.backup()
@@ -395,6 +405,12 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 func (l *lexer) nextItem() item {
 	item := <-l.items
 	l.lastPos = item.pos
+
+	// TODO(fabxc): remove for version 1.0.
+	t := item.typ
+	if t == itemSummary || t == itemDescription || t == itemRunbook {
+		log.Errorf("Token %q is not valid anymore. Alerting rule syntax has changed with version 0.17.0. Please read https://prometheus.io/docs/alerting/rules/.", item)
+	}
 	return item
 }
 

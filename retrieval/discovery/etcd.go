@@ -45,13 +45,15 @@ type EtcdDiscovery struct {
 	nodes         map[string]string
 	keyPrefix     string
 	metricKey     string
-	retryInterval time.Duration
+	retryInterval model.Duration
 }
 
 // NewEtcdDiscovery returns a new EtcdDiscovery for the given config.
 func NewEtcdDiscovery(conf *config.EtcdSDConfig) (*EtcdDiscovery, error) {
 	etcdConf := etcd.Config{
 		Endpoints: conf.Endpoints,
+		Username:  conf.Username,
+		Password:  conf.Password,
 	}
 
 	etcdClient, err := etcd.New(etcdConf)
@@ -76,13 +78,14 @@ func (ed *EtcdDiscovery) Run(ctx context.Context, ch chan<- []*config.TargetGrou
 	defer close(ch)
 
 	for {
+		if err := ed.watchNodes(ctx, ch); err != nil {
+			log.Error(err.Error())
+		}
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(ed.retryInterval):
-			if err := ed.watchNodes(ctx, ch); err != nil {
-				log.Error(err.Error())
-			}
+		case <-time.After(time.Duration(ed.retryInterval)):
 		}
 	}
 }
@@ -90,7 +93,7 @@ func (ed *EtcdDiscovery) Run(ctx context.Context, ch chan<- []*config.TargetGrou
 func (ed *EtcdDiscovery) watchNodes(ctx context.Context, ch chan<- []*config.TargetGroup) error {
 	index, err := ed.fetchNodes(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get error: %s", err.Error())
 	}
 
 	targetGroups, err := ed.makeTargetGroupsForAllNodes()
@@ -115,7 +118,7 @@ func (ed *EtcdDiscovery) watchNodes(ctx context.Context, ch chan<- []*config.Tar
 
 		wresp, err := watcher.Next(ctx)
 		if err != nil {
-			return fmt.Errorf("etcd error: %s", err.Error())
+			return fmt.Errorf("watch error: %s", err.Error())
 		}
 
 		var changedKey string

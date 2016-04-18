@@ -373,6 +373,14 @@ func providersFromConfig(cfg *config.ScrapeConfig) map[string]TargetProvider {
 		}
 		app("consul", i, k)
 	}
+	for i, c := range cfg.EtcdSDConfigs {
+		k, err := discovery.NewEtcdDiscovery(c)
+		if err != nil {
+			log.Errorf("Cannot create Etcd discovery: %s", err)
+			continue
+		}
+		app("etcd", i, k)
+	}
 	for i, c := range cfg.MarathonSDConfigs {
 		app("marathon", i, discovery.NewMarathonDiscovery(c))
 	}

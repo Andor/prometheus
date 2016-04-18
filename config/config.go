@@ -405,6 +405,8 @@ type ScrapeConfig struct {
 	FileSDConfigs []*FileSDConfig `yaml:"file_sd_configs,omitempty"`
 	// List of Consul service discovery configurations.
 	ConsulSDConfigs []*ConsulSDConfig `yaml:"consul_sd_configs,omitempty"`
+	// List of Etcd service discovery configurations.
+	EtcdSDConfigs []*EtcdSDConfig `yaml:"etcd_sd_configs,omitempty"`
 	// List of Serverset service discovery configurations.
 	ServersetSDConfigs []*ServersetSDConfig `yaml:"serverset_sd_configs,omitempty"`
 	// NerveSDConfigs is a list of Nerve service discovery configurations.

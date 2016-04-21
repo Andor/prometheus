@@ -227,7 +227,7 @@ func (ed *EtcdDiscovery) makeTargetGroupForChangedKey(changedKey string) (*confi
 
 		var info MetricInfo
 		if err := json.Unmarshal([]byte(value), &info); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error: %s value: %q", err, value)
 		}
 
 		if tg.Labels == nil {

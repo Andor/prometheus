@@ -121,6 +121,10 @@ func (ed *EtcdDiscovery) watchNodes(ctx context.Context, ch chan<- []*config.Tar
 			return fmt.Errorf("watch error: %s", err.Error())
 		}
 
+		if !strings.Contains(wresp.Node.Key, ed.metricKey) {
+			continue
+		}
+
 		var changedKey string
 		switch wresp.Action {
 		case "set", "update", "create", "compareAndSwap":

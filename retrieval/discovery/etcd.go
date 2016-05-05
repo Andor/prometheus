@@ -64,7 +64,6 @@ func NewEtcdDiscovery(conf *config.EtcdSDConfig) (*EtcdDiscovery, error) {
 	ed := &EtcdDiscovery{
 		client:        etcdClient,
 		kapi:          etcd.NewKeysAPI(etcdClient),
-		nodes:         make(map[string]string),
 		keyPrefix:     conf.KeyPrefix,
 		metricKey:     conf.MetricKey,
 		retryInterval: conf.RetryInterval,
@@ -163,6 +162,9 @@ func (ed *EtcdDiscovery) fetchNodes(ctx context.Context) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// init nodes each time we fetch nodes from etcd
+	ed.nodes = make(map[string]string)
 
 	ed.getAllNodes(resp.Node)
 	return resp.Index, nil

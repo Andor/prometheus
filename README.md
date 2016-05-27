@@ -1,4 +1,8 @@
-# Prometheus [![Build Status](https://travis-ci.org/prometheus/prometheus.svg)](https://travis-ci.org/prometheus/prometheus) [![Circle CI](https://circleci.com/gh/prometheus/prometheus/tree/master.svg?style=svg)](https://circleci.com/gh/prometheus/prometheus/tree/master)
+# Prometheus [![Build Status](https://travis-ci.org/prometheus/prometheus.svg)][travis]
+
+[![CircleCI](https://circleci.com/gh/prometheus/prometheus/tree/master.svg?style=shield)][circleci]
+[![Docker Repository on Quay](https://quay.io/repository/prometheus/prometheus/status)][quay]
+[![Docker Pulls](https://img.shields.io/docker/pulls/prom/prometheus.svg?maxAge=604800)][hub]
 
 Visit [prometheus.io](https://prometheus.io) for the full documentation,
 examples and guides.
@@ -32,7 +36,9 @@ There are various ways of installing Prometheus.
 Precompiled binaries for released versions are available in the
 [*releases* section](https://github.com/prometheus/prometheus/releases)
 of the GitHub repository. Using the latest production release binary
-is the recommended way of installing Prometheus.
+is the recommended way of installing Prometheus. 
+See the [Installing](https://prometheus.io/docs/introduction/install/) 
+chapter in the documentation for all the details.
 
 Debian and RPM packages are being worked on.
 
@@ -80,3 +86,9 @@ Refer to [CONTRIBUTING.md](CONTRIBUTING.md)
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
+
+
+[travis]: https://travis-ci.org/prometheus/prometheus
+[hub]: https://hub.docker.com/r/prom/prometheus/
+[circleci]: https://circleci.com/gh/prometheus/prometheus
+[quay]: https://quay.io/repository/prometheus/prometheus

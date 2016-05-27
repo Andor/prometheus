@@ -288,6 +288,9 @@ func (ts *targetSet) runProviders(ctx context.Context, providers map[string]Targ
 				}
 				// First set of all targets the provider knows.
 				for _, tgroup := range initial {
+					if tgroup == nil {
+						continue
+					}
 					targets, err := targetsFromGroup(tgroup, ts.config)
 					if err != nil {
 						log.With("target_group", tgroup).Errorf("Target update failed: %s", err)
@@ -333,6 +336,9 @@ func (ts *targetSet) runProviders(ctx context.Context, providers map[string]Targ
 
 // update handles a target group update from a target provider identified by the name.
 func (ts *targetSet) update(name string, tgroup *config.TargetGroup) error {
+	if tgroup == nil {
+		return nil
+	}
 	targets, err := targetsFromGroup(tgroup, ts.config)
 	if err != nil {
 		return err
@@ -360,13 +366,13 @@ func providersFromConfig(cfg *config.ScrapeConfig) map[string]TargetProvider {
 	}
 
 	for i, c := range cfg.DNSSDConfigs {
-		app("dns", i, discovery.NewDNSDiscovery(c))
+		app("dns", i, discovery.NewDNS(c))
 	}
 	for i, c := range cfg.FileSDConfigs {
 		app("file", i, discovery.NewFileDiscovery(c))
 	}
 	for i, c := range cfg.ConsulSDConfigs {
-		k, err := discovery.NewConsulDiscovery(c)
+		k, err := discovery.NewConsul(c)
 		if err != nil {
 			log.Errorf("Cannot create Consul discovery: %s", err)
 			continue
@@ -382,7 +388,7 @@ func providersFromConfig(cfg *config.ScrapeConfig) map[string]TargetProvider {
 		app("etcd", i, k)
 	}
 	for i, c := range cfg.MarathonSDConfigs {
-		app("marathon", i, discovery.NewMarathonDiscovery(c))
+		app("marathon", i, discovery.NewMarathon(c))
 	}
 	for i, c := range cfg.KubernetesSDConfigs {
 		k, err := discovery.NewKubernetesDiscovery(c)
@@ -401,6 +407,9 @@ func providersFromConfig(cfg *config.ScrapeConfig) map[string]TargetProvider {
 	for i, c := range cfg.EC2SDConfigs {
 		app("ec2", i, discovery.NewEC2Discovery(c))
 	}
+	for i, c := range cfg.AzureSDConfigs {
+		app("azure", i, discovery.NewAzureDiscovery(c))
+	}
 	if len(cfg.TargetGroups) > 0 {
 		app("static", 0, NewStaticProvider(cfg.TargetGroups))
 	}
@@ -409,6 +418,7 @@ func providersFromConfig(cfg *config.ScrapeConfig) map[string]TargetProvider {
 }
 
 // targetsFromGroup builds targets based on the given TargetGroup and config.
+// Panics if target group is nil.
 func targetsFromGroup(tg *config.TargetGroup, cfg *config.ScrapeConfig) ([]*Target, error) {
 	targets := make([]*Target, 0, len(tg.Targets))
 
@@ -459,7 +469,7 @@ func targetsFromGroup(tg *config.TargetGroup, cfg *config.ScrapeConfig) ([]*Targ
 			case "https":
 				addr = fmt.Sprintf("%s:443", addr)
 			default:
-				panic(fmt.Errorf("targetsFromGroup: invalid scheme %q", cfg.Scheme))
+				return nil, fmt.Errorf("invalid scheme: %q", cfg.Scheme)
 			}
 			labels[model.AddressLabel] = model.LabelValue(addr)
 		}

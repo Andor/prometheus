@@ -82,8 +82,7 @@ func (i itemType) isSetOperator() bool {
 	return false
 }
 
-// Constants for operator precedence in expressions.
-//
+// LowestPrec is a constant for operator precedence in expressions.
 const LowestPrec = 0 // Non-operators.
 
 // Precedence returns the operator precedence of the binary
@@ -172,6 +171,7 @@ const (
 	itemBy
 	itemWithout
 	itemOn
+	itemIgnoring
 	itemGroupLeft
 	itemGroupRight
 	itemBool
@@ -209,6 +209,7 @@ var key = map[string]itemType{
 	"keeping_extra": itemKeepCommon,
 	"keep_common":   itemKeepCommon,
 	"on":            itemOn,
+	"ignoring":      itemIgnoring,
 	"group_left":    itemGroupLeft,
 	"group_right":   itemGroupRight,
 	"bool":          itemBool,

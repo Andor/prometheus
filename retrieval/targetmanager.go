@@ -180,8 +180,9 @@ type targetSet struct {
 	mtx sync.RWMutex
 
 	// Sets of targets by a source string that is unique across target providers.
-	tgroups   map[string][]*Target
-	providers map[string]TargetProvider
+	tgroupsLock sync.RWMutex
+	tgroups     map[string][]*Target
+	providers   map[string]TargetProvider
 
 	scrapePool *scrapePool
 	config     *config.ScrapeConfig
@@ -193,7 +194,7 @@ type targetSet struct {
 
 func newTargetSet(cfg *config.ScrapeConfig, app storage.SampleAppender) *targetSet {
 	ts := &targetSet{
-		tgroups:    map[string][]*Target{},
+		tgroups:    make(map[string][]*Target),
 		scrapePool: newScrapePool(cfg, app),
 		syncCh:     make(chan struct{}, 1),
 		config:     cfg,
@@ -252,9 +253,11 @@ Loop:
 
 func (ts *targetSet) sync() {
 	var all []*Target
+	ts.tgroupsLock.RLock()
 	for _, targets := range ts.tgroups {
 		all = append(all, targets...)
 	}
+	ts.tgroupsLock.RUnlock()
 	ts.scrapePool.sync(all)
 }
 
@@ -296,7 +299,9 @@ func (ts *targetSet) runProviders(ctx context.Context, providers map[string]Targ
 						log.With("target_group", tgroup).Errorf("Target update failed: %s", err)
 						continue
 					}
+					ts.tgroupsLock.Lock()
 					ts.tgroups[name+"/"+tgroup.Source] = targets
+					ts.tgroupsLock.Unlock()
 				}
 			case <-time.After(5 * time.Second):
 				// Initial set didn't arrive. Act as if it was empty
@@ -352,7 +357,9 @@ func (ts *targetSet) update(name string, tgroup *config.TargetGroup) error {
 	ts.mtx.Lock()
 	defer ts.mtx.Unlock()
 
+	ts.tgroupsLock.Lock()
 	ts.tgroups[name+"/"+tgroup.Source] = targets
+	ts.tgroupsLock.Unlock()
 
 	select {
 	case ts.syncCh <- struct{}{}:

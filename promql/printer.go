@@ -145,7 +145,7 @@ func (node *AggregateExpr) String() string {
 		}
 		aggrString = fmt.Sprintf(format, aggrString, node.Grouping)
 	}
-	if node.KeepExtraLabels {
+	if node.KeepCommonLabels {
 		aggrString += " KEEP_COMMON"
 	}
 	return aggrString
@@ -165,11 +165,16 @@ func (node *BinaryExpr) String() string {
 		} else {
 			matching = fmt.Sprintf(" ON(%s)", vm.MatchingLabels)
 		}
-		if vm.Card == CardManyToOne {
-			matching += fmt.Sprintf(" GROUP_LEFT(%s)", vm.Include)
-		}
-		if vm.Card == CardOneToMany {
-			matching += fmt.Sprintf(" GROUP_RIGHT(%s)", vm.Include)
+		if vm.Card == CardManyToOne || vm.Card == CardOneToMany {
+			matching += " GROUP_"
+			if vm.Card == CardManyToOne {
+				matching += "LEFT"
+			} else {
+				matching += "RIGHT"
+			}
+			if len(vm.Include) > 0 {
+				matching += fmt.Sprintf("(%s)", vm.Include)
+			}
 		}
 	}
 	return fmt.Sprintf("%s %s%s%s %s", node.LHS, node.Op, returnBool, matching, node.RHS)

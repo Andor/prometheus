@@ -44,8 +44,7 @@ import (
 	"github.com/prometheus/prometheus/storage/local"
 	"github.com/prometheus/prometheus/template"
 	"github.com/prometheus/prometheus/util/httputil"
-	"github.com/prometheus/prometheus/web/api/legacy"
-	"github.com/prometheus/prometheus/web/api/v1"
+	api_v1 "github.com/prometheus/prometheus/web/api/v1"
 	"github.com/prometheus/prometheus/web/ui"
 )
 
@@ -58,8 +57,7 @@ type Handler struct {
 	queryEngine   *promql.Engine
 	storage       local.Storage
 
-	apiV1     *v1.API
-	apiLegacy *legacy.API
+	apiV1 *api_v1.API
 
 	router       *route.Router
 	listenErrCh  chan error
@@ -101,6 +99,7 @@ type PrometheusVersion struct {
 type Options struct {
 	ListenAddress        string
 	ExternalURL          *url.URL
+	RoutePrefix          string
 	MetricsPath          string
 	UseLocalAssets       bool
 	UserAssetsPath       string
@@ -136,20 +135,15 @@ func New(
 		queryEngine:   qe,
 		storage:       st,
 
-		apiV1: v1.NewAPI(qe, st),
-		apiLegacy: &legacy.API{
-			QueryEngine: qe,
-			Storage:     st,
-			Now:         model.Now,
-		},
+		apiV1: api_v1.NewAPI(qe, st),
 	}
 
-	if o.ExternalURL.Path != "" {
+	if o.RoutePrefix != "/" {
 		// If the prefix is missing for the root path, prepend it.
 		router.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, o.ExternalURL.Path, http.StatusFound)
+			http.Redirect(w, r, o.RoutePrefix, http.StatusFound)
 		})
-		router = router.WithPrefix(o.ExternalURL.Path)
+		router = router.WithPrefix(o.RoutePrefix)
 	}
 
 	instrh := prometheus.InstrumentHandler
@@ -176,7 +170,6 @@ func New(
 		Handler: http.HandlerFunc(h.federation),
 	}))
 
-	h.apiLegacy.Register(router.WithPrefix("/api"))
 	h.apiV1.Register(router.WithPrefix("/api/v1"))
 
 	router.Get("/consoles/*filepath", instrf("consoles", h.consoles))

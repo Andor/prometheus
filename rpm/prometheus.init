@@ -32,7 +32,7 @@ start() {
   fi
 
   echo -n $"Starting prometheus: "
-  daemonize -u ${DAEMON_USER} -p ${PID_FILE} -l ${LOCK_FILE} -a -e ${LOG_FILE} -o ${LOG_FILE} ${DAEMON} ${ARGS}
+  daemonize -u ${DAEMON_USER} -p ${PID_FILE} -l ${LOCK_FILE} -a -e ${LOG_FILE} -o ${LOG_FILE} ${DAEMON} ${PROMETHEUS_OPTIONS}
   RETVAL=$?
   echo ""
   return $RETVAL
